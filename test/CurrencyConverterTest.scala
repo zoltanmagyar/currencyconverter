@@ -5,7 +5,7 @@ import org.scalatestplus.play.PlaySpec
 import play.api.Configuration
 import play.api.cache.AsyncCacheApi
 import play.api.libs.ws.WSClient
-import services.{CachingCurrencyConverter, ExchangeRateNotFound}
+import services.{CachingCurrencyConverter, ExchangeRateNotFound, FailedConversion}
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -44,8 +44,23 @@ class CurrencyConverterTest extends PlaySpec with MockitoSugar {
       conversion.amount mustEqual amount * rate
       conversion.original mustEqual amount
     }
+    "fail if rate is invalid" in {
+      val fromCurrency = CurrencyUnit.GBP
+      val toCurrency = CurrencyUnit.EUR
+      val amount = 1
+      val rate = -1.13
+      val mockCache = new MockCache(Future.successful(rate))
 
-    "fail if target currency rate in not available" in {
+      val result = Await.result(
+        new CachingCurrencyConverter(mockCache, mock[Configuration], mock[WSClient]).convert(fromCurrency, toCurrency, amount),
+        Timeout
+      )
+
+      result must be ('left)
+      val error = result.left.get
+      error mustBe a [FailedConversion]
+    }
+    "fail if target currency rate is not available" in {
       val fromCurrency = CurrencyUnit.GBP
       val toCurrency = CurrencyUnit.EUR
       val amount = 1
