@@ -2,10 +2,8 @@ import akka.Done
 import org.joda.money.CurrencyUnit
 import org.scalatest.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
-import play.api.Configuration
 import play.api.cache.AsyncCacheApi
-import play.api.libs.ws.WSClient
-import services.{CachingCurrencyConverter, ExchangeRateNotFound, FailedConversion}
+import services.{CachingCurrencyConverter, ExchangeRateNotFound, ExchangeRatesClient, FailedConversion}
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -14,9 +12,9 @@ import scala.reflect.ClassTag
 
 class CurrencyConverterTest extends PlaySpec with MockitoSugar {
 
-  val Timeout: Duration = 10.seconds
+  val Timeout: Duration = 5.millis
 
-  class MockCache(value: Future[Double]) extends AsyncCacheApi {
+  class MockCache[T](value: Future[T]) extends AsyncCacheApi {
     override def set(key: String, value: Any, expiration: Duration): Future[Done] = ???
     override def remove(key: String): Future[Done] = ???
     override def getOrElseUpdate[A](key: String, expiration: Duration)(orElse: => Future[A])
@@ -30,11 +28,11 @@ class CurrencyConverterTest extends PlaySpec with MockitoSugar {
       val fromCurrency = CurrencyUnit.GBP
       val toCurrency = CurrencyUnit.EUR
       val amount = 1
-      val rate = 1.13
+      val rate: BigDecimal = 1.13
       val mockCache = new MockCache(Future.successful(rate))
 
       val result = Await.result(
-        new CachingCurrencyConverter(mockCache, mock[Configuration], mock[WSClient]).convert(fromCurrency, toCurrency, amount),
+        new CachingCurrencyConverter(mockCache, mock[ExchangeRatesClient]).convert(fromCurrency, toCurrency, amount),
         Timeout
       )
 
@@ -48,11 +46,11 @@ class CurrencyConverterTest extends PlaySpec with MockitoSugar {
       val fromCurrency = CurrencyUnit.GBP
       val toCurrency = CurrencyUnit.EUR
       val amount = 1
-      val rate = -1.13
+      val rate: BigDecimal = -1.13
       val mockCache = new MockCache(Future.successful(rate))
 
       val result = Await.result(
-        new CachingCurrencyConverter(mockCache, mock[Configuration], mock[WSClient]).convert(fromCurrency, toCurrency, amount),
+        new CachingCurrencyConverter(mockCache, mock[ExchangeRatesClient]).convert(fromCurrency, toCurrency, amount),
         Timeout
       )
 
@@ -67,7 +65,7 @@ class CurrencyConverterTest extends PlaySpec with MockitoSugar {
       val mockCache = new MockCache(Future.failed(ExchangeRateNotFound))
 
       val result = Await.result(
-        new CachingCurrencyConverter(mockCache, mock[Configuration], mock[WSClient]).convert(fromCurrency, toCurrency, amount),
+        new CachingCurrencyConverter(mockCache, mock[ExchangeRatesClient]).convert(fromCurrency, toCurrency, amount),
         Timeout
       )
 

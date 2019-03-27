@@ -1,7 +1,6 @@
 package services
 
 import java.math.RoundingMode
-import java.math.{BigDecimal => JBigDecimal}
 
 import javax.inject.Inject
 import model.{ConversionResponse, ExchangeRatesResponse}
@@ -21,22 +20,22 @@ case class FailedConversion(exception: Throwable) extends ConversionError
 trait CurrencyConverter {
   def convert(fromCurrency: CurrencyUnit,
               toCurrency: CurrencyUnit,
-              amount: Double): Future[Either[ConversionError, ConversionResponse]]
+              amount: BigDecimal): Future[Either[ConversionError, ConversionResponse]]
 }
 /**
   * CurrencyConverter implementation which uses a cache. Cache entries are invalidated after 1 minute.
   */
-class CachingCurrencyConverter @Inject()(cache: AsyncCacheApi, config: Configuration, ws: WSClient)
+class CachingCurrencyConverter @Inject()(cache: AsyncCacheApi, exchangeRatesClient: ExchangeRatesClient)
                                         (implicit ec: ExecutionContext) extends CurrencyConverter {
   override def convert(fromCurrency: CurrencyUnit,
                        toCurrency: CurrencyUnit,
-                       amount: Double): Future[Either[ConversionError, ConversionResponse]] = {
+                       amount: BigDecimal): Future[Either[ConversionError, ConversionResponse]] = {
     val key = s"${fromCurrency.getCode}->${toCurrency.getCode}"
-    cache.getOrElseUpdate(key, expiration = 1.minute)(refresh(fromCurrency, toCurrency)).map { rate =>
-      val moneyToConvert = Money.of(fromCurrency, amount)
-      Try(moneyToConvert.convertedTo(toCurrency, new JBigDecimal(rate), RoundingMode.HALF_UP)) match {
+    cache.getOrElseUpdate(key, expiration = 1.minute)(exchangeRatesClient.refresh(fromCurrency, toCurrency)).map { rate =>
+      val moneyToConvert = Money.of(fromCurrency, amount.bigDecimal)
+      Try(moneyToConvert.convertedTo(toCurrency, rate.bigDecimal, RoundingMode.HALF_UP)) match {
         case Success(convertedMoney) =>
-          Right(ConversionResponse(exchange = rate, amount = convertedMoney.getAmount.doubleValue(), original = amount))
+          Right(ConversionResponse(exchange = rate, amount = BigDecimal(convertedMoney.getAmount), original = amount))
         case Failure(exception) =>
           // log the error
           Left(FailedConversion(exception))
@@ -46,8 +45,10 @@ class CachingCurrencyConverter @Inject()(cache: AsyncCacheApi, config: Configura
         Left(ExchangeRateNotFound)
     }
   }
+}
 
-  private def refresh(from: CurrencyUnit, to: CurrencyUnit): Future[Double] = {
+class ExchangeRatesClient @Inject()(config: Configuration, ws: WSClient)(implicit ec: ExecutionContext) {
+  def refresh(from: CurrencyUnit, to: CurrencyUnit): Future[BigDecimal] = {
     val requestTimeout = 3.seconds
     val exchangeRatesRequest = ws.url(
       s"${config.get[String]("exchangeRatesUrl")}/latest?base=${from.getCode}"

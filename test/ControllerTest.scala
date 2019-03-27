@@ -20,7 +20,7 @@ class ControllerTest extends PlaySpec {
 
     "return a valid result with action" in {
       val conversionResponse = ConversionResponse(1.13, 1.13, 1)
-      val currencyConverter: CurrencyConverter = (_: CurrencyUnit, _: CurrencyUnit, _: Double) =>
+      val currencyConverter: CurrencyConverter = (_: CurrencyUnit, _: CurrencyUnit, _: BigDecimal) =>
         Future.successful(Right(conversionResponse))
       val controller = new Controller(stubControllerComponents(), currencyConverter)
       val result = controller.convert(fakeRequest(conversionRequest))
@@ -29,7 +29,7 @@ class ControllerTest extends PlaySpec {
     }
 
     "return an internal server error result" in {
-      val currencyConverter: CurrencyConverter = (_: CurrencyUnit, _: CurrencyUnit, _: Double) =>
+      val currencyConverter: CurrencyConverter = (_: CurrencyUnit, _: CurrencyUnit, _: BigDecimal) =>
         Future.successful(Left(FailedConversion(new IllegalArgumentException())))
       val controller = new Controller(stubControllerComponents(), currencyConverter)
       val result = controller.convert(fakeRequest(conversionRequest))
@@ -37,7 +37,7 @@ class ControllerTest extends PlaySpec {
     }
 
     "return a not found error result" in {
-      val currencyConverter: CurrencyConverter = (_: CurrencyUnit, _: CurrencyUnit, _: Double) =>
+      val currencyConverter: CurrencyConverter = (_: CurrencyUnit, _: CurrencyUnit, _: BigDecimal) =>
         Future.successful(Left(ExchangeRateNotFound))
       val controller = new Controller(stubControllerComponents(), currencyConverter)
       val result = controller.convert(fakeRequest(conversionRequest))

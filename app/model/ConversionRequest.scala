@@ -9,13 +9,13 @@ import play.api.libs.json._
 /**
   * Request payload to convert currencies
   */
-case class ConversionRequest(fromCurrency: CurrencyUnit, toCurrency: CurrencyUnit, amount: Double)
+case class ConversionRequest(fromCurrency: CurrencyUnit, toCurrency: CurrencyUnit, amount: BigDecimal)
 
 object ConversionRequest {
   implicit val conversionRequestReads: Reads[ConversionRequest] = (
     (JsPath \ "fromCurrency").read[CurrencyUnit] and
       (JsPath \ "toCurrency").read[CurrencyUnit] and
-      (JsPath \ "amount").read[Double](min(0.0))
+      (JsPath \ "amount").read[BigDecimal]
     )(ConversionRequest.apply _)
   implicit val conversionRequestWrites: Writes[ConversionRequest] = Json.writes[ConversionRequest]
 }

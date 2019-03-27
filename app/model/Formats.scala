@@ -15,10 +15,10 @@ object Formats {
   }
   implicit val currencyUnitWrites: Writes[CurrencyUnit] = (currencyUnit: CurrencyUnit) => JsString(currencyUnit.getCode)
 
-  implicit val ratesMapReads: Reads[Map[CurrencyUnit, Double]] = {
+  implicit val ratesMapReads: Reads[Map[CurrencyUnit, BigDecimal]] = {
     case JsObject(kvs) =>
       val validKvs = kvs.map {
-        case (k, v) => Try(CurrencyUnit.of(k) -> v.as[Double])
+        case (k, v) => Try(CurrencyUnit.of(k) -> v.as[BigDecimal])
       }.collect {
         // drop the invalid ones but could fail the whole if any fails
         case Success(values) => values
